@@ -59,7 +59,7 @@ from prophet import Prophet
 
 # 选择一天的数据
 print(raw_data.index)
-one_data = raw_data["2024-01-02 23:00:00":"2024-01-02 23:59:59"]
+one_data = raw_data["2024-01-02 00:00:00":"2024-01-02 23:59:59"]
 
 
 test_data = one_data[[r"VA.NOX($mg/m^{3}$)"]]
@@ -75,12 +75,12 @@ else:
 
 
 # 要用后75个数据作为测试集，前面的作为训练集
-train_data = test_data.iloc[:-75]
-test_data = test_data.iloc[-75:]
+train_data = test_data.iloc[:-7500]
+test_data = test_data.iloc[-7500:]
 
 
-m = Prophet(stan_backend="CMDSTANPY")
-m.fit(train_data)
+m = Prophet(stan_backend="CMDSTANPY", growth="logistic", seasonality_mode="additive")
+m.fit(test_data)
 
 # future = m.make_future_dataframe(
 #     periods=5,
@@ -91,19 +91,20 @@ m.fit(train_data)
 # 使用测试集的时间戳进行预测
 forecast = m.predict(test_data[["ds"]])
 
-# 使用测试集的时间戳进行预测
-forecast = m.predict(test_data[["ds"]])
-
 forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail()
 fig1 = m.plot_components(forecast)
-fig1.savefig("prophet.png")
+# fig1.savefig("prophet.png")
 
 # 绘制测试集的真实值和预测值
 plt.plot(test_data["ds"], test_data["y"], label="真实值")
 plt.plot(test_data["ds"], forecast["yhat"], label="预测值")
+plt.plot(test_data["ds"], forecast["yhat_lower"], label="预测值下界")
+plt.plot(test_data["ds"], forecast["yhat_upper"], label="预测值上界")
 plt.legend()
-plt.show()
+
 plt.savefig("prophet2.png")
+plt.show()
+
 
 # 计算MAE和MAPE
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
