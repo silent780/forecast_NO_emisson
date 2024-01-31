@@ -38,8 +38,8 @@ else:
 
 
 # 要用后75个数据作为测试集，前面的作为训练集
-train_data = test_data.iloc[:-7500]
-test_data = test_data.iloc[-7500:]
+train_data = test_data.iloc[:-75]
+test_data = test_data.iloc[-75:]
 
 
 m = Prophet(stan_backend="CMDSTANPY", growth="logistic", seasonality_mode="additive")
