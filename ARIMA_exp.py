@@ -89,7 +89,7 @@ plt.show()
 # 这里假设选择的p=2，q=1
 # 也可以用AIC或BIC准则来选择最优的p和q，例如：
 order_select = sm.tsa.arma_order_select_ic(
-    train, ic=["aic", "bic"], trend="n", max_ar=5, max_ma=5
+    train["y"], ic=["aic", "bic"], trend="n", max_ar=5, max_ma=5
 )
 print("AIC准则下的最优阶数：", order_select.aic_min_order)
 print("BIC准则下的最优阶数：", order_select.bic_min_order)
