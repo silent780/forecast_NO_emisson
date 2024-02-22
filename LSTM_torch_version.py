@@ -3,9 +3,10 @@ import torch.nn as nn
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+import matplotlib.pyplot as plt
 
 # 1. 加载和预处理数据
-data = pd.read_csv("nox_onde_day.csv")
+data = pd.read_csv(r"data\nox_onde_day.csv")
 data = data["VA.NOX($mg/m^{3}$)"].values
 data = data.astype("float32")
 data = np.reshape(data, (-1, 1))
@@ -50,7 +51,7 @@ loss_function = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # 4. 训练模型
-epochs = 150
+epochs = 50
 
 for i in range(epochs):
     for seq in train_set:
@@ -70,10 +71,11 @@ for i in range(epochs):
         print(f"epoch: {i:3} loss: {single_loss.item():10.8f}")
 
 print(f"epoch: {i:3} loss: {single_loss.item():10.10f}")
-
+torch.save(model.state_dict(), "model.pth")
 # 5. 进行预测
 model.eval()
 
+predictions = []
 for i in range(5):  # 预测未来5分钟
     seq = torch.FloatTensor(test_set[-300:])  # 使用最后5分钟的数据进行预测
     with torch.no_grad():
@@ -81,4 +83,11 @@ for i in range(5):  # 预测未来5分钟
             torch.zeros(1, 1, model.hidden_layer_size),
             torch.zeros(1, 1, model.hidden_layer_size),
         )
+        predictions.append(model(seq).item())
         test_set = np.append(test_set, model(seq))
+
+
+# 可视化结果
+plt.plot(range(len(predictions)), predictions, label="Predicted")
+plt.legend()
+plt.show()
