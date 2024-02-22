@@ -111,9 +111,10 @@ import matplotlib.pyplot as plt
 
 # 检查是否有可用的 GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+if torch.cuda.is_available():
+    print("GPU".center(100))
 # 1. 加载和预处理数据
-data = pd.read_csv("nox_onde_day.csv")
+data = pd.read_csv(r"data\nox_onde_day.csv")
 data = data["VA.NOX($mg/m^{3}$)"].values
 data = data.astype("float32")
 data = np.reshape(data, (-1, 1))
