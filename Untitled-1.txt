@@ -1,0 +1,179 @@
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib
+import numpy as np
+from scipy.ndimage import gaussian_filter1d
+
+# 设置全局字体
+matplotlib.rcParams["font.family"] = "SimSun"
+raw_data = pd.read_csv(r"data\qiyeshuju-4S间隔.csv", encoding="gbk")
+raw_data.index = pd.to_datetime(raw_data["时间"])
+raw_data.drop("时间", axis=1, inplace=True)
+
+columns = raw_data.columns
+print(columns)
+
+
+# 选择一天的数据
+print(raw_data.index) 
+one_data = raw_data["2024-01-1 00:00:00":"2024-01-1 23:59:59"]
+
+test_data = one_data[[r"VA.NOX($mg/m^{3}$)"]]
+test_data.columns = ["y"]
+
+origin_test_data = test_data.copy()
+## 去除异常值
+# 阈值去除
+# mask = test_data['y'] < 750
+# test_data.loc[mask, 'y'] = np.nan
+# test_data['y'].fillna(method='ffill', inplace=True)
+
+# Z-score去除
+# test_data.columns = ['ds', 'y']   # 假设 'ds' 是日期，'y' 是值
+test_data.loc[:, "ds"] = test_data.index
+# 计算 Z-score
+test_data['z'] = (test_data['y'] - test_data['y'].mean()) / test_data['y'].std()
+test_data = test_data[(test_data['z'] > -3) & (test_data['z'] < 3)]
+
+
+
+# 滤波处理
+# Apply Gaussian smoothing to the 'y' column of test_data
+test_data['y'] = gaussian_filter1d(test_data['y'], sigma=10)
+
+
+test_data.loc[:, "ds"] = test_data.index
+test_data.loc[:, "unique_id"] = [1.0 for i in range(len(test_data))]
+test_data.plot(y='y')
+origin_test_data.plot(y="y")
+
+
+n = len(test_data)
+train = test_data.iloc[: int(n * 0.9), :]
+test = test_data.iloc[int(n * 0.9) :, :]
+print(n)
+
+
+import numpy as np
+import pandas as pd
+from IPython.display import display, Markdown
+
+import matplotlib.pyplot as plt
+from neuralforecast import NeuralForecast
+from neuralforecast.models import NBEATS, NHITS, LSTM, GRU,TCN, TimesNet,Informer
+from neuralforecast.losses.pytorch import MQLoss, DistributionLoss
+# Split data and declare panel dataset
+Y_train_df = train
+Y_test_df = test
+print(len(Y_train_df))
+print(len(Y_test_df))
+
+
+# Fit and predict with NBEATS and NHITS models
+horizon = len(Y_test_df)
+models = [
+          NBEATS(input_size=2 * horizon, h=horizon, max_steps=50),
+          NHITS(input_size=2 * horizon, h=horizon, max_steps=200),
+          LSTM(h=horizon,                    # Forecast horizon
+               max_steps=50,                # Number of steps to train
+               scaler_type='standard',       # Type of scaler to normalize data
+               encoder_hidden_size=64,       # Defines the size of the hidden state of the LSTM
+               decoder_hidden_size=64,),
+          GRU(h=horizon,                    # Forecast horizon
+               max_steps=50,                # Number of steps to train
+               scaler_type='standard',       # Type of scaler to normalize data
+               encoder_hidden_size=64,       # Defines the size of the hidden state of the LSTM
+               decoder_hidden_size=64,)                   # Forecast horizon
+          ]
+
+nf = NeuralForecast(models=models, freq='4s')
+nf.fit(df=Y_train_df)
+Y_hat_df = nf.predict().reset_index()
+
+Y_hat_df = Y_test_df.merge(Y_hat_df, how='left', on=['unique_id', 'ds'])
+
+plot_df = pd.concat([Y_train_df, Y_hat_df]).set_index('ds')
+fig, ax = plt.subplots(1, 1, figsize = (20, 7))
+plot_df.drop(['unique_id','z'], axis=1).plot(ax=ax, linewidth=2)
+
+ax.set_title('NOX forecasting', fontsize=22)
+ax.set_ylabel('', fontsize=20)
+ax.set_xlabel('Timestamp [t]', fontsize=20)
+ax.legend(prop={'size': 15})
+ax.grid()
+import matplotlib.pyplot as plt
+import pandas as pd
+
+plot_df.drop(['unique_id','z'], axis=1).plot(ax=ax, linewidth=2)
+# 首先，我们需要确定Y_hat_df中哪些列是模型的名字
+plot_df = pd.concat([Y_train_df, Y_hat_df]).set_index('ds')
+model_names = Y_hat_df.columns.difference(['unique_id', 'z', "y","ds"])
+
+# # 然后，我们可以遍历这些模型名称，为每个模型创建一个图
+for model_name in model_names:
+    # 我们只选择当前模型的预测结果，以及训练数据
+    model_df = plot_df[['y', model_name]].copy()
+    # 创建图
+    fig, ax = plt.subplots(1, 1, figsize = (20, 7))
+    model_df.plot(ax=ax, linewidth=2)
+
+    # 设置图的标题、标签等
+    ax.set_title(f'NOX forecasting ({model_name})', fontsize=22)
+    ax.set_ylabel('emission', fontsize=20)
+    ax.set_xlabel('Timestamp [t]', fontsize=20)
+    ax.legend(prop={'size': 15})
+    ax.grid()
+
+    # 保存图像
+    plt.savefig(f'forecast_result\{model_name}.jpg')
+
+    # 关闭图像，以释放内存
+    plt.close(fig)
+
+
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+import numpy as np
+from copy import deepcopy
+
+def evaluate_forecast(y_true, y_pred):
+    # 假设 y_true 是真实值，y_pred 是预测值
+    # 计算MSE
+    mse = mean_squared_error(y_true, y_pred)
+    print('MSE: ', mse)
+
+    # 计算RMSE
+    rmse = np.sqrt(mse)
+    print('RMSE: ', rmse)
+
+    # 计算MAE
+    mae = mean_absolute_error(y_true, y_pred)
+    print('MAE: ', mae)
+
+    # 计算MAPE
+    mape = np.mean(np.abs((np.array(y_true) - np.array(y_pred)) / np.array(y_true))) * 100
+    print('MAPE: %', mape)
+
+    # use a pd.DataFrame to store the results
+    results = pd.DataFrame({'MSE': [mse], 'RMSE': [rmse], 'MAE': [mae], 'MAPE': [mape]})
+    return results
+
+
+def get_model_name(Y_hat_df):
+    columns = Y_hat_df.columns
+    model_names = []
+    for column in columns:
+        if column.isupper():
+            model_names.append(column)
+    return model_names
+
+Y_hat_org = Y_hat_org.dropna()
+all_model_result = {}
+for model_name in get_model_name(Y_hat_org):
+    y_true = Y_hat_org['y']
+    y_pred = Y_hat_df[model_name]
+    model_evaluate_result = evaluate_forecast(y_true, y_pred)
+    all_model_result[model_name] = deepcopy(model_evaluate_result)
+
+print(all_model_result)

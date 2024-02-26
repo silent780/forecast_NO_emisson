@@ -1,5 +1,4 @@
 import pandas as pd
-import ydata_profiling
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
